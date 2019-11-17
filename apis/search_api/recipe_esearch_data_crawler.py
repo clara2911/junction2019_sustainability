@@ -2,6 +2,8 @@ import http.client, urllib.request, urllib.parse, urllib.error, base64
 import pandas as pd
 import json
 
+data_path = ""
+
 headers = {
     # Request headers
     'Content-Type': 'application/json',
@@ -25,7 +27,15 @@ try:
     print(data)
     conn.close()
 
-    df = pd.json(data, orient='index')
-    print(df.head())
+    df = pd.read_json(data)
+    results = df.results.to_json()
+    test = pd.read_json(results).T
+
+    print(test.head())
+    print(len(test))
+
+    test.to_csv(data_path + "recipes.csv", index=False)
+    print("Done")
+
 except Exception as e:
     print("ahhhh")
