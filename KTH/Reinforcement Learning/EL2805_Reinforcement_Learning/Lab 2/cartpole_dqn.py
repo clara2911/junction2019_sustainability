@@ -10,19 +10,21 @@ from keras.models import Sequential
 
 EPISODES = 1000 #Maximum number of episodes
 
+
 # DQN Agent for the Cartpole
 # Q function approximation with NN, experience replay, and target network
 class DQNAgent:
     # Constructor for the agent (invoked when DQN is first called in main)
     def __init__(self, state_size, action_size):
         self.check_solve = False	# If True, stop if you satisfy solution condition
-        self.render = False        # If you want to see Cartpole learning, then change to True
+        self.render = True        # If you want to see Cartpole learning, then change to True
 
         # Get size of state and action
         self.state_size = state_size
         self.action_size = action_size
 
         # Modify here
+        # TODO modify here
 
         # Set hyper parameters for the DQN. Do not adjust those labeled as Fixed.
         self.discount_factor = 0.95
@@ -76,16 +78,15 @@ class DQNAgent:
         # Tip 1: Use the random package to generate a random action.
         # Tip 2: Use keras.model.predict() to compute Q-values from the state.
 
-        # q_values = self.model.predict(action)
-        # random.()
-        # if num < self.epsilon:
-        #     # explore
-        #     action = random.randrange(self.action_size)
-        # else:
-        #     # exploit
-        #     # pick the action with the highest q value
-        #
-        action = random.randrange(self.action_size)
+        num = random.uniform(0, 1)
+        if num < self.epsilon:
+            # explore
+            action = random.randrange(self.action_size)
+        else:
+            # exploit
+            q_values = self.model.predict(state)
+            # select the action which has the highest Q-value
+            action = np.argmax(q_values[0])
         return action
 ###############################################################################
 ###############################################################################
