@@ -33,7 +33,7 @@ class DQNAgent:
         self.batch_size = 32 # Fixed
         self.memory_size = 1000
         self.train_start = 1000 # Fixed
-        self.target_update_frequency = 1
+        self.target_update_frequency = 20
 
         # Number of test states for Q value plots
         self.test_state_no = 10000
@@ -121,15 +121,20 @@ class DQNAgent:
         #Insert your Q-learning code here
         #Tip 1: Observe that the Q-values are stored in the variable target
         #Tip 2: What is the Q-value of the action taken at the last state of the episode?
-        for i in range(self.batch_size): #For every batch
-            target[i][action[i]] = random.randint(0,1)
-###############################################################################
-###############################################################################
+        for i in range(self.batch_size):
+            if done[i]:
+                # a last state of an episode
+                target[i][action[i]] = reward[i]
+            else:
+                # a non-last state of an episode
+                target[i][action[i]] = (reward[i] + self.discount_factor * np.amax(target_val[i]))
 
         #Train the inner loop network
         self.model.fit(update_input, target, batch_size=self.batch_size,
                        epochs=1, verbose=0)
-        return
+###############################################################################
+###############################################################################
+
     #Plots the score per episode as well as the maximum q value per episode, averaged over precollected states.
     def plot_data(self, episodes, scores, max_q_mean):
         pylab.figure(0)
