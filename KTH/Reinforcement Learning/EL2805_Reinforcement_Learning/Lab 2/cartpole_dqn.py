@@ -7,6 +7,7 @@ from collections import deque
 from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import Sequential
+import datetime
 
 EPISODES = 1000 #Maximum number of episodes
 
@@ -15,9 +16,9 @@ EPISODES = 1000 #Maximum number of episodes
 # Q function approximation with NN, experience replay, and target network
 class DQNAgent:
     # Constructor for the agent (invoked when DQN is first called in main)
-    def __init__(self, state_size, action_size):
-        self.check_solve = False	# If True, stop if you satisfy solution condition
-        self.render = True        # If you want to see Cartpole learning, then change to True
+    def __init__(self, state_size, action_size, hid_layers=[16]):
+        self.check_solve = True	# If True, stop if you satisfy solution condition
+        self.render = False       # If you want to see Cartpole learning, then change to True
 
         # Get size of state and action
         self.state_size = state_size
@@ -42,8 +43,8 @@ class DQNAgent:
         self.memory = deque(maxlen=self.memory_size)
 
         # Create main network and target network (using build_model defined below)
-        self.model = self.build_model()
-        self.target_model = self.build_model()
+        self.model = self.build_model(hid_layers)
+        self.target_model = self.build_model(hid_layers)
 
         # Initialize target network
         self.update_target_model()
@@ -54,10 +55,15 @@ class DQNAgent:
 ###############################################################################
         # Edit the Neural Network model here
         # Tip: Consult https://keras.io/getting-started/sequential-model-guide/
-    def build_model(self):
+    def build_model(self, hid_layers):
         model = Sequential()
-        model.add(Dense(16, input_dim=self.state_size, activation='relu',
+        for j in range(len(hid_layers)):
+            model.add(Dense(hid_layers[j], input_dim=self.state_size, activation='relu',
                         kernel_initializer='he_uniform'))
+        #model.add(Dense(32, input_dim=self.state_size, activation='relu',
+        #                kernel_initializer='he_uniform'))
+        #model.add(Dense(32, input_dim=self.state_size, activation='relu',
+        #                kernel_initializer='he_uniform'))
         model.add(Dense(self.action_size, activation='linear',
                         kernel_initializer='he_uniform'))
         model.summary()
@@ -141,18 +147,100 @@ class DQNAgent:
         pylab.plot(episodes, max_q_mean, 'b')
         pylab.xlabel("Episodes")
         pylab.ylabel("Average Q Value")
-        pylab.savefig("qvalues.png")
+        qvalues_fig = "qvalues_" + str(datetime.datetime.now()) + ".png"
+        pylab.savefig(qvalues_fig)
 
         pylab.figure(1)
         pylab.plot(episodes, scores, 'b')
         pylab.xlabel("Episodes")
-        pylab.ylabel("Score")
-        pylab.savefig("scores.png")
+        scores_fig = "scores_"+ str(datetime.datetime.now()) + ".png"
+        pylab.savefig(scores_fig)
+
+###############################################################################
+###############################################################################
+
+def experiment(experiment_type, experiment_values):
+
+    # For CartPole-v0, maximum episode length is 200
+    env = gym.make('CartPole-v0') # Generate Cartpole-v0 environment object from the gym library
+    #Get state and action sizes from the environment
+    state_size = env.observation_space.shape[0]
+    action_size = env.action_space.n
+
+    #Create agent, see the DQNAgent __init__ method for details
+    if experiment_type == "hid_layers":
+        agent = DQNAgent(state_size, action_size, hid_layers=experiment_values)
+    else:
+        exit("THIS EXPERIMENT TYPE IS NOT DEFINED")
+
+    #Collect test states for plotting Q values using uniform random policy
+    test_states = np.zeros((agent.test_state_no, state_size))
+    max_q = np.zeros((EPISODES, agent.test_state_no))
+    max_q_mean = np.zeros((EPISODES,1))
+
+    done = True
+    for i in range(agent.test_state_no):
+        if done:
+            done = False
+            state = env.reset()
+            state = np.reshape(state, [1, state_size])
+            test_states[i] = state
+        else:
+            action = random.randrange(action_size)
+            next_state, reward, done, info = env.step(action)
+            next_state = np.reshape(next_state, [1, state_size])
+            test_states[i] = state
+            state = next_state
+
+    scores, episodes = [], [] # Create dynamically growing score and episode counters
+    for e in range(EPISODES):
+        done = False
+        score = 0
+        state = env.reset() #Initialize/reset the environment
+        state = np.reshape(state, [1, state_size]) #Reshape state so that to a 1 by state_size two-dimensional array ie. [x_1,x_2] to [[x_1,x_2]]
+        #Compute Q values for plotting
+        tmp = agent.model.predict(test_states)
+        max_q[e][:] = np.max(tmp, axis=1)
+        max_q_mean[e] = np.mean(max_q[e][:])
+
+        while not done:
+            if agent.render:
+                env.render() #Show cartpole animation
+
+            #Get action for the current state and go one step in environment
+            action = agent.get_action(state)
+            next_state, reward, done, info = env.step(action)
+            next_state = np.reshape(next_state, [1, state_size]) #Reshape next_state similarly to state
+
+            #Save sample <s, a, r, s'> to the replay memory
+            agent.append_sample(state, action, reward, next_state, done)
+            #Training step
+            agent.train_model()
+            score += reward #Store episodic reward
+            state = next_state #Propagate state
+
+            if done:
+                #At the end of very episode, update the target network
+                if e % agent.target_update_frequency == 0:
+                    agent.update_target_model()
+                #Plot the play time for every episode
+                scores.append(score)
+                episodes.append(e)
+
+                print("episode:", e, "  score:", score," q_value:", max_q_mean[e],"  memory length:",
+                      len(agent.memory))
+
+
+                # go on for 300 episodes
+                if len(scores) > 300:
+                    return episodes, scores, max_q_mean[:e+1]
+
 
 ###############################################################################
 ###############################################################################
 
 if __name__ == "__main__":
+
     # For CartPole-v0, maximum episode length is 200
     env = gym.make('CartPole-v0') # Generate Cartpole-v0 environment object from the gym library
     #Get state and action sizes from the environment
@@ -222,7 +310,7 @@ if __name__ == "__main__":
                 # if the mean of scores of last 100 episodes is bigger than 195
                 # stop training
                 if agent.check_solve:
-                    if np.mean(scores[-min(100, len(scores)):]) >= 195:
+                    if np.mean(scores[-min(20, len(scores)):]) >= 100: #TODO change back to last 100 > 195
                         print("solved after", e-100, "episodes")
                         agent.plot_data(episodes,scores,max_q_mean[:e+1])
                         sys.exit()
